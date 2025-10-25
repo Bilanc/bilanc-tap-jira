@@ -94,7 +94,6 @@ class Stream():
     :var pk_fields: A list of primary key fields
     :var indirect_stream: If True, this indicates the stream cannot be synced
     directly, but instead has its data generated via a separate stream."""
-    global USER_IDS
     def __init__(self, tap_stream_id, pk_fields, indirect_stream=False, path=None):
         self.tap_stream_id = tap_stream_id
         self.pk_fields = pk_fields
@@ -114,15 +113,39 @@ class Stream():
         stream_metadata = metadata.to_map(stream.metadata)
         extraction_time = singer.utils.now()
         for rec in page:
-            if self.tap_stream_id == "users":
-                user_id: str = rec["accountId"]
-                if user_id not in USER_IDS:
-                    USER_IDS.append(user_id)
             with Transformer() as transformer:
                 rec = transformer.transform(rec, stream.schema.to_dict(), stream_metadata)
             singer.write_record(self.tap_stream_id, rec, time_extracted=extraction_time)
         with metrics.record_counter(self.tap_stream_id) as counter:
             counter.increment(len(page))
+
+
+class Users(Stream):
+    def sync(self):
+        max_results = 2
+
+        if Context.config.get("groups"):
+            groups = Context.config.get("groups").split(",")
+        else:
+            groups = ["jira-administrators",
+                      "jira-software-users",
+                      "jira-core-users",
+                      "jira-users",
+                      "users"]
+
+        for group in groups:
+            group = group.strip()
+            try:
+                params = {"groupname": group,
+                          "maxResults": max_results,
+                          "includeInactiveUsers": True}
+                pager = Paginator(Context.client, items_key='values')
+                for page in pager.pages(self.tap_stream_id, "GET",
+                                        "/rest/api/2/group/member",
+                                        params=params):
+                    self.write_page(page)
+            except JiraNotFoundError:
+                LOGGER.info("Could not find group \"%s\", skipping", group)
 
 
 class Projects(Stream):
@@ -209,27 +232,6 @@ class Issues(Stream):
                 # the "menu" bar for each issue. This is of questionable utility,
                 # so we decided to just strip the field out for now.
                 issue['fields'].pop('operations', None)
-                if "users" in get_selected_stream_ids():
-                    assignee = issue["fields"].get("assignee")
-                    if assignee:
-                        try:
-                            user_id: str = assignee["accountId"]
-                            if user_id in USER_IDS:
-                                continue
-                            user = Context.client.request(
-                                "users", "GET",
-                                f"/rest/api/2/user?accountId={user_id}",
-                            )
-                            Stream("users", ["accountId"],).write_page([user])
-                            USER_IDS.append(user_id)
-                        except JiraNotFoundError:
-                            LOGGER.warning(
-                                "Assignee user with accountId `%s` not found.",
-                                assignee["accountId"],
-                            )
-
-
-
 
             # Grab last_updated before transform in write_page
             last_updated = utils.strptime_to_utc(page[-1]["fields"]["updated"])
@@ -296,8 +298,10 @@ ISSUE_TRANSITIONS = Stream("issue_transitions", ["id"],
                            indirect_stream=True)
 PROJECTS = Projects("projects", ["id"])
 CHANGELOGS = Stream("changelogs", ["id"], indirect_stream=True)
+USERS = Users("users", ["accountId"])
 
 ALL_STREAMS = [
+    USERS,
     PROJECTS,
     VERSIONS,
     COMPONENTS,
@@ -306,7 +310,6 @@ ALL_STREAMS = [
     Stream("issue_types", ["id"], path="/rest/api/2/issuetype"),
     Stream("resolutions", ["id"], path="/rest/api/2/resolution"),
     Stream("roles", ["id"], path="/rest/api/2/role"),
-    Stream("users", ["accountId"], path="/rest/api/2/users/search"),
     Statuses("statuses", ["id"]),
     IssuePriorities("issue_priorities", ["id"]),
     ISSUES,
