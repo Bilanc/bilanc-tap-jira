@@ -5,7 +5,13 @@ import singer
 from singer import metrics, utils, metadata, Transformer
 from .http import Paginator,JiraNotFoundError, IssuesPaginator
 from .context import Context
+from typing import List
 
+USER_IDS: List[str] = []
+
+def get_selected_stream_ids():
+    return [s.tap_stream_id for s in Context.catalog.streams
+        if Context.is_selected(s.tap_stream_id)]
 
 def raise_if_bookmark_cannot_advance(worklogs):
     # Worklogs can only be queried with a `since` timestamp and
@@ -88,6 +94,7 @@ class Stream():
     :var pk_fields: A list of primary key fields
     :var indirect_stream: If True, this indicates the stream cannot be synced
     directly, but instead has its data generated via a separate stream."""
+    global USER_IDS
     def __init__(self, tap_stream_id, pk_fields, indirect_stream=False, path=None):
         self.tap_stream_id = tap_stream_id
         self.pk_fields = pk_fields
@@ -107,6 +114,10 @@ class Stream():
         stream_metadata = metadata.to_map(stream.metadata)
         extraction_time = singer.utils.now()
         for rec in page:
+            if self.tap_stream_id == "users":
+                user_id: str = rec["accountId"]
+                if user_id not in USER_IDS:
+                    USER_IDS.append(user_id)
             with Transformer() as transformer:
                 rec = transformer.transform(rec, stream.schema.to_dict(), stream_metadata)
             singer.write_record(self.tap_stream_id, rec, time_extracted=extraction_time)
@@ -167,6 +178,7 @@ class Statuses(Stream):
 class Issues(Stream):
 
     def sync(self):
+        global USER_IDS
         updated_bookmark = [self.tap_stream_id, "updated"]
         page_num_offset = [self.tap_stream_id, "offset", "page_num"]
 
@@ -197,6 +209,27 @@ class Issues(Stream):
                 # the "menu" bar for each issue. This is of questionable utility,
                 # so we decided to just strip the field out for now.
                 issue['fields'].pop('operations', None)
+                if "users" in get_selected_stream_ids():
+                    assignee = issue["fields"].get("assignee")
+                    if assignee:
+                        try:
+                            user_id: str = assignee["accountId"]
+                            if user_id in USER_IDS:
+                                continue
+                            user = Context.client.request(
+                                "users", "GET",
+                                f"/rest/api/2/user?accountId={user_id}",
+                            )
+                            Stream("users", ["accountId"],).write_page([user])
+                            USER_IDS.append(user_id)
+                        except JiraNotFoundError:
+                            LOGGER.warning(
+                                "Assignee user with accountId `%s` not found.",
+                                assignee["accountId"],
+                            )
+
+
+
 
             # Grab last_updated before transform in write_page
             last_updated = utils.strptime_to_utc(page[-1]["fields"]["updated"])
@@ -292,20 +325,18 @@ class DependencyException(Exception):
 
 def validate_dependencies():
     errs = []
-    selected = [s.tap_stream_id for s in Context.catalog.streams
-                if Context.is_selected(s.tap_stream_id)]
     msg_tmpl = ("Unable to extract {0} data. "
                 "To receive {0} data, you also need to select {1}.")
-    if VERSIONS.tap_stream_id in selected and PROJECTS.tap_stream_id not in selected:
+    if VERSIONS.tap_stream_id in get_selected_stream_ids() and PROJECTS.tap_stream_id not in get_selected_stream_ids():
         errs.append(msg_tmpl.format("Versions", "Projects"))
-    if COMPONENTS.tap_stream_id in selected and PROJECTS.tap_stream_id not in selected:
+    if COMPONENTS.tap_stream_id in get_selected_stream_ids() and PROJECTS.tap_stream_id not in get_selected_stream_ids():
         errs.append(msg_tmpl.format("Components", "Projects"))
-    if ISSUES.tap_stream_id not in selected:
-        if CHANGELOGS.tap_stream_id in selected:
+    if ISSUES.tap_stream_id not in get_selected_stream_ids():
+        if CHANGELOGS.tap_stream_id in get_selected_stream_ids():
             errs.append(msg_tmpl.format("Changelog", "Issues"))
-        if ISSUE_COMMENTS.tap_stream_id in selected:
+        if ISSUE_COMMENTS.tap_stream_id in get_selected_stream_ids():
             errs.append(msg_tmpl.format("Issue Comments", "Issues"))
-        if ISSUE_TRANSITIONS.tap_stream_id in selected:
+        if ISSUE_TRANSITIONS.tap_stream_id in get_selected_stream_ids():
             errs.append(msg_tmpl.format("Issue Transitions", "Issues"))
     if errs:
         raise DependencyException(" ".join(errs))
