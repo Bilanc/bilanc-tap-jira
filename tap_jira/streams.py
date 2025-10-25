@@ -199,7 +199,6 @@ class Statuses(Stream):
 class Issues(Stream):
 
     def sync(self):
-        global USER_IDS
         updated_bookmark = [self.tap_stream_id, "updated"]
         page_num_offset = [self.tap_stream_id, "offset", "page_num"]
 
