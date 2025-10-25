@@ -7,8 +7,6 @@ from .http import Paginator,JiraNotFoundError, IssuesPaginator
 from .context import Context
 from typing import List
 
-USER_IDS: List[str] = []
-
 def get_selected_stream_ids():
     return [s.tap_stream_id for s in Context.catalog.streams
         if Context.is_selected(s.tap_stream_id)]
