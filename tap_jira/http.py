@@ -170,7 +170,8 @@ class Client():
         else:
             LOGGER.info("Using Basic Auth API authentication")
             self.base_url = config.get("base_url")
-            self.access_token = config.get('access_token')
+            self.auth = HTTPBasicAuth(config.get("username"), config.get("password"))
+            self.test_basic_credentials_are_authorized()
 
     def url(self, path):
         if self.is_cloud:
@@ -187,7 +188,7 @@ class Client():
         if self.user_agent:
             headers["User-Agent"] = self.user_agent
 
-        if True:
+        if self.is_cloud:
             # Add OAuth Headers
             headers['Accept'] = 'application/json'
             headers['Authorization'] = 'Bearer {}'.format(self.access_token)
@@ -200,9 +201,8 @@ class Client():
                           max_tries=6,
                           giveup=lambda e: not should_retry_httperror(e))
     def send(self, method, path, headers={}, **kwargs):
-        if True:
+        if self.is_cloud:
             # OAuth Path
-            LOGGER.info(self.url(path))
             request = requests.Request(method,
                                        self.url(path),
                                        headers=self._headers(headers),

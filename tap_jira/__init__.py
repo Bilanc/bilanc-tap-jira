@@ -11,7 +11,13 @@ from tap_jira.http import Client
 import threading
 
 LOGGER = singer.get_logger()
-REQUIRED_CONFIG_KEYS_CLOUD = ["access_token"]
+REQUIRED_CONFIG_KEYS_CLOUD = ["start_date",
+                              "user_agent",
+                              "site_name",
+                              "access_token",
+                              "refresh_token",
+                              "client_id",
+                              "client_secret"]
 REQUIRED_CONFIG_KEYS_HOSTED = ["start_date",
                                "username",
                                "password",
@@ -70,7 +76,6 @@ def generate_metadata(stream, schema):
 
 
 def output_schema(stream):
-    LOGGER.info(stream)
     schema = load_schema(stream.tap_stream_id)
     singer.write_schema(stream.tap_stream_id, schema, stream.pk_fields)
 
