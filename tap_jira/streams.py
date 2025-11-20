@@ -241,6 +241,7 @@ class Issues(Stream):
             'status_category_key': status_category.get('key'),
             'status_category_color': status_category.get('colorName'),
             'time_estimate': time_estimate,
+            'time_estimate_raw': original_estimate,
             'project_key': project.get('key'),
             'project_name': project.get('name'),
             'project_id': project.get('id'),
@@ -252,8 +253,9 @@ class Issues(Stream):
             'creator_email': creator.get('emailAddress'),
             'creator_account_id': creator.get('accountId'),
             'labels': labels_str,
+            'labels_json': labels_list,
             'custom_category': custom_category.get('value'),
-            'tenant': Context.config.get('site_name') or Context.config.get('base_url', '').split('://')[1].split('.')[0] if Context.config.get('base_url') else None
+            'tenant': Context.config.get('site_name', 'default')
         }
         
         # Add parsed fields to issue

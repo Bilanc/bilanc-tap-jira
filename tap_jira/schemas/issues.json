@@ -260,6 +260,12 @@
         "integer"
       ]
     },
+    "time_estimate_raw": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
     "project_key": {
       "type": [
         "null",
@@ -325,6 +331,18 @@
         "null",
         "string"
       ]
+    },
+    "labels_json": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
     },
     "custom_category": {
       "type": [
