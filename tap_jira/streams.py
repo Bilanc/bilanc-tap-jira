@@ -200,6 +200,66 @@ class Statuses(Stream):
 
 class Issues(Stream):
 
+    def _parse_fields(self, issue):
+        """Parse fields JSON into separate columns for better performance"""
+        import re
+        fields = issue.get('fields', {})
+        
+        # Time estimation parsing
+        time_estimate = 0
+        original_estimate = fields.get('timetracking', {}).get('originalEstimate', '')
+        if original_estimate:
+            weeks_match = re.search(r'(\d+)w', original_estimate)
+            days_match = re.search(r'(\d+)d', original_estimate)
+            weeks = int(weeks_match.group(1)) if weeks_match else 0
+            days = int(days_match.group(1)) if days_match else 0
+            time_estimate = (weeks * 7) + days
+            
+        # Labels array to string
+        labels_list = fields.get('labels', [])
+        labels_str = ','.join(labels_list) if labels_list else None
+        
+        # Parse nested objects safely
+        status = fields.get('status', {}) or {}
+        status_category = status.get('statusCategory', {}) or {}
+        project = fields.get('project', {}) or {}
+        assignee = fields.get('assignee', {}) or {}
+        creator = fields.get('creator', {}) or {}
+        custom_category = fields.get('customfield_10408', {}) or {}
+        
+        parsed_fields = {
+            'status_category_change_date': fields.get('statuscategorychangedate'),
+            'created_at': fields.get('created'),
+            'updated_at': fields.get('updated'), 
+            'completed_at': fields.get('resolutiondate'),
+            'due_date': fields.get('duedate'),
+            'summary': fields.get('summary'),
+            'description': fields.get('description'),
+            'status_name': status.get('name'),
+            'status_id': status.get('id'),
+            'status_category_name': status_category.get('name'),
+            'status_category_key': status_category.get('key'),
+            'status_category_color': status_category.get('colorName'),
+            'time_estimate': time_estimate,
+            'project_key': project.get('key'),
+            'project_name': project.get('name'),
+            'project_id': project.get('id'),
+            'project_type_key': project.get('projectTypeKey'),
+            'assignee_name': assignee.get('displayName'),
+            'assignee_email': assignee.get('emailAddress'),
+            'assignee_account_id': assignee.get('accountId'),
+            'creator_name': creator.get('displayName'),
+            'creator_email': creator.get('emailAddress'),
+            'creator_account_id': creator.get('accountId'),
+            'labels': labels_str,
+            'custom_category': custom_category.get('value'),
+            'tenant': Context.config.get('site_name') or Context.config.get('base_url', '').split('://')[1].split('.')[0] if Context.config.get('base_url') else None
+        }
+        
+        # Add parsed fields to issue
+        issue.update(parsed_fields)
+        return issue
+
     def sync(self):
         updated_bookmark = [self.tap_stream_id, "updated"]
         page_num_offset = [self.tap_stream_id, "offset", "page_num"]
@@ -231,6 +291,9 @@ class Issues(Stream):
                 # the "menu" bar for each issue. This is of questionable utility,
                 # so we decided to just strip the field out for now.
                 issue['fields'].pop('operations', None)
+                
+                # Parse fields JSON into separate columns
+                issue = self._parse_fields(issue)
 
             # Grab last_updated before transform in write_page
             last_updated = utils.strptime_to_utc(page[-1]["fields"]["updated"])

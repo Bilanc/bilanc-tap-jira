@@ -178,6 +178,165 @@
         "string"
       ],
       "format": "date-time"
+    },
+    "status_category_change_date": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "created_at": {
+      "type": [
+        "null",
+        "string"
+      ],
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": [
+        "null",
+        "string"
+      ],
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": [
+        "null",
+        "string"
+      ],
+      "format": "date-time"
+    },
+    "due_date": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "summary": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "description": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "status_name": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "status_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "status_category_name": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "status_category_key": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "status_category_color": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "time_estimate": {
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "project_key": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "project_name": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "project_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "project_type_key": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "assignee_name": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "assignee_email": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "assignee_account_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "creator_name": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "creator_email": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "creator_account_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "labels": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "custom_category": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "tenant": {
+      "type": [
+        "null",
+        "string"
+      ]
     }
   },
   "definitions": {
