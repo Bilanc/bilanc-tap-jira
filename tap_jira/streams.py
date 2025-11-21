@@ -226,6 +226,7 @@ class Issues(Stream):
         assignee = fields.get('assignee', {}) or {}
         creator = fields.get('creator', {}) or {}
         custom_category = fields.get('customfield_10408', {}) or {}
+        priority = fields.get('priority', {}) or {}
         
         parsed_fields = {
             'status_category_change_date': fields.get('statuscategorychangedate'),
@@ -252,6 +253,7 @@ class Issues(Stream):
             'creator_name': creator.get('displayName'),
             'creator_email': creator.get('emailAddress'),
             'creator_account_id': creator.get('accountId'),
+            'priority_icon_url': priority.get('iconUrl'),
             'labels': labels_str,
             'labels_json': labels_list,
             'custom_category': custom_category.get('value'),
