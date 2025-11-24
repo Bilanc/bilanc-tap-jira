@@ -311,6 +311,42 @@ class Issues(Stream):
         singer.write_state(Context.state)
 
 
+class Changelogs(Stream):
+    def _parse_changelog_items(self, changelog):
+        """Parse changelog items JSON into separate columns for better performance"""
+        items = changelog.get('items', [])
+        
+        if items:
+            # Parse the first item (index 0) similar to the SQL query
+            first_item = items[0] if len(items) > 0 else {}
+            
+            parsed_fields = {
+                'created_at': changelog.get('created'),
+                'issue_id': changelog.get('issueId'),
+                'items_field': first_item.get('field'),
+                'items_field_type': first_item.get('fieldtype'), 
+                'items_field_id': first_item.get('fieldId'),
+                'items_from': first_item.get('from'),
+                'items_from_string': first_item.get('fromString'),
+                'items_to': first_item.get('to'),
+                'items_to_string': first_item.get('toString'),
+                'tenant': Context.config.get('site_name', 'default')
+            }
+            
+            # Add parsed fields to changelog
+            changelog.update(parsed_fields)
+        
+        return changelog
+
+    def write_page(self, page):
+        # Parse changelog items before writing
+        for changelog in page:
+            changelog = self._parse_changelog_items(changelog)
+        
+        # Call parent write_page method
+        super().write_page(page)
+
+
 class Worklogs(Stream):
     def _fetch_ids(self, last_updated):
         # since_ts uses millisecond precision
@@ -363,7 +399,7 @@ ISSUE_COMMENTS = Stream("issue_comments", ["id"], indirect_stream=True)
 ISSUE_TRANSITIONS = Stream("issue_transitions", ["id"],
                            indirect_stream=True)
 PROJECTS = Projects("projects", ["id"])
-CHANGELOGS = Stream("changelogs", ["id"], indirect_stream=True)
+CHANGELOGS = Changelogs("changelogs", ["id"], indirect_stream=True)
 USERS = Users("users", ["accountId"])
 
 ALL_STREAMS = [

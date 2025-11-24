@@ -223,6 +223,67 @@
         }
       }
     },
+    "created_at": {
+      "type": [
+        "null",
+        "string"
+      ],
+      "format": "date-time"
+    },
+    "issue_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "items_field": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "items_field_type": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "items_field_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "items_from": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "items_from_string": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "items_to": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "items_to_string": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "tenant": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
     "inserted_at": {
       "type": [
         "null",
