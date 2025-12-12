@@ -4,6 +4,7 @@ import threading
 import re
 from requests.exceptions import HTTPError
 from requests.auth import HTTPBasicAuth
+from urllib3.exceptions import IncompleteRead
 import requests
 from singer import metrics
 import singer
@@ -67,9 +68,9 @@ class JiraNotImplementedError(JiraError):
     pass
 
 def should_retry_httperror(exception):
-    """ Retry 500-range errors. """
-    # An ConnectionError is thrown without a response
-    if exception.response is None:
+    """ Retry 500-range errors, ConnectionErrors, and IncompleteRead errors. """
+    # ConnectionError or IncompleteRead exceptions are thrown without a response
+    if exception.response is None or isinstance(exception, IncompleteRead):
         return True
 
     return 500 <= exception.response.status_code < 600
@@ -196,7 +197,7 @@ class Client():
         return headers
 
     @backoff.on_exception(backoff.expo,
-                          (requests.exceptions.ConnectionError, HTTPError),
+                          (requests.exceptions.ConnectionError, HTTPError, IncompleteRead),
                           jitter=None,
                           max_tries=6,
                           giveup=lambda e: not should_retry_httperror(e))
