@@ -119,7 +119,6 @@ class Stream():
         with metrics.record_counter(self.tap_stream_id) as counter:
             counter.increment(len(page))
 
-
 class Users(Stream):
     def sync(self):
         max_results = 50  # Increase from 2
@@ -137,7 +136,7 @@ class Users(Stream):
             params=params
         ):
             self.write_page(page)
-            
+
 class Projects(Stream):
     def sync(self):
         projects = Context.client.request(
@@ -268,30 +267,10 @@ class Issues(Stream):
                   "validateQuery": "strict",
                   "jql": jql}
         page_num = Context.bookmark(page_num_offset) or 0
-        endpoint = "/rest/api/2/search/jql"
-        # Validate which endpoint works
-        try:
-            # Use a minimal validation request to reduce unnecessary data transfer
-            validation_params = dict(params)
-            validation_params["maxResults"] = 1
-            Context.client.request(tap_stream_id=self.tap_stream_id, method="GET", path=endpoint, params=validation_params)
-            pager = IssuesPaginator(Context.client, items_key="issues", page_num=page_num)
-            issues_pages = pager.pages(self.tap_stream_id,
-                                "GET", endpoint,
-                                params=params)
-        except JiraNotFoundError as ex:
-            if "HTTP-error-code: 404" in str(ex) or "resource you have specified cannot be found" in str(ex).lower():
-                LOGGER.warning(
-                "Endpoint /rest/api/2/search/jql not supported on this JIRA instance. " \
-                "Falling back to /rest/api/2/search."
-                )
-                pager = Paginator(Context.client, items_key="issues", page_num=page_num)
-                issues_pages = pager.pages(self.tap_stream_id,
-                                    "GET", "/rest/api/2/search",
-                                    params=params)
-            else:
-                raise
-        for page in issues_pages:
+        pager = IssuesPaginator(Context.client, items_key="issues", page_num=page_num)
+        for page in pager.pages(self.tap_stream_id,
+                                "GET", "/rest/api/2/search/jql",
+                                params=params):
             # sync comments and changelogs for each issue
             sync_sub_streams(page)
             for issue in page:
@@ -305,21 +284,20 @@ class Issues(Stream):
                 # the "menu" bar for each issue. This is of questionable utility,
                 # so we decided to just strip the field out for now.
                 issue['fields'].pop('operations', None)
+                
+                # Parse fields JSON into separate columns
+                issue = self._parse_fields(issue)
 
             # Grab last_updated before transform in write_page
             last_updated = utils.strptime_to_utc(page[-1]["fields"]["updated"])
+
             self.write_page(page)
+
             Context.set_bookmark(page_num_offset, pager.next_page_num)
-            # Copy parent's bookmark to children
-            self.set_bookmarks_for_issue_sub_streams(page_num_offset.copy(), pager.next_page_num)
             singer.write_state(Context.state)
         Context.set_bookmark(page_num_offset, None)
         Context.set_bookmark(updated_bookmark, last_updated)
-        # copy parent's bookmark to children
-        self.set_bookmarks_for_issue_sub_streams(page_num_offset, None)
-        self.set_bookmarks_for_issue_sub_streams(updated_bookmark, last_updated)
         singer.write_state(Context.state)
-
 
 
 class Changelogs(Stream):
