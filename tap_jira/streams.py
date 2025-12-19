@@ -121,21 +121,86 @@ class Stream():
 
 class Users(Stream):
     def sync(self):
-        max_results = 50  # Increase from 2
+        max_results = 50
         
-        # Search all users instead of by group
-        params = {
-            "maxResults": max_results,
-        }
+        # First, get all groups in the instance
+        all_groups = self._get_all_groups()
         
-        pager = Paginator(Context.client, items_key=None)
-        for page in pager.pages(
-            self.tap_stream_id, 
-            "GET",
-            "/rest/api/3/users/search",  # Changed endpoint
-            params=params
-        ):
-            self.write_page(page)
+        # Track users and their groups
+        users_dict = {}  # accountId -> user object with groups list
+        
+        for group in all_groups:
+            group_name = group.get('name')
+            if not group_name:
+                continue
+                
+            try:
+                params = {
+                    "groupname": group_name,
+                    "maxResults": max_results,
+                    "includeInactiveUsers": False
+                }
+                pager = Paginator(Context.client, items_key='values')
+                
+                for page in pager.pages(self.tap_stream_id, "GET",
+                                        "/rest/api/2/group/member",
+                                        params=params):
+                    for user in page:
+                        if not user.get('active', False):
+                            continue
+                            
+                        account_id = user.get('accountId')
+                        if not account_id:
+                            continue
+                        
+                        # Add or update user with group info
+                        if account_id not in users_dict:
+                            users_dict[account_id] = user.copy()
+                            users_dict[account_id]['groups'] = {
+                                "items": [],
+                                "size": 0
+                            }
+                        
+                        # Add this group to the user's groups
+                        users_dict[account_id]['groups']['items'].append({
+                            "name": group_name,
+                            "self": group.get('self')
+                        })
+                        users_dict[account_id]['groups']['size'] += 1
+                        
+            except JiraNotFoundError:
+                LOGGER.info("Could not find group \"%s\", skipping", group_name)
+            except Exception as e:
+                LOGGER.warning(f"Error processing group {group_name}: {e}")
+        
+        # Write all users in batches
+        batch_size = 100
+        users_list = list(users_dict.values())
+        for i in range(0, len(users_list), batch_size):
+            batch = users_list[i:i + batch_size]
+            self.write_page(batch)
+    
+    def _get_all_groups(self):
+        """Fetch all groups in the Jira instance"""
+        try:
+            # For Jira Cloud
+            groups = Context.client.request(
+                self.tap_stream_id,
+                "GET",
+                "/rest/api/3/group/bulk",
+                params={"maxResults": 1000}
+            )
+            return groups.get('values', [])
+        except Exception as e:
+            LOGGER.warning(f"Could not fetch all groups: {e}")
+            # Fallback to default groups
+            return [
+                {"name": "jira-administrators"},
+                {"name": "jira-software-users"},
+                {"name": "jira-core-users"},
+                {"name": "jira-users"},
+                {"name": "users"}
+            ]
 
 class Projects(Stream):
     def sync(self):
