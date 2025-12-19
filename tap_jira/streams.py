@@ -119,23 +119,35 @@ class Stream():
         with metrics.record_counter(self.tap_stream_id) as counter:
             counter.increment(len(page))
 
+
 class Users(Stream):
     def sync(self):
-        max_results = 50  # Increase from 2
-        
-        # Search all users instead of by group
-        params = {
-            "maxResults": max_results,
-        }
-        
-        pager = Paginator(Context.client, items_key=None)
-        for page in pager.pages(
-            self.tap_stream_id, 
-            "GET",
-            "/rest/api/3/users/search",  # Changed endpoint
-            params=params
-        ):
-            self.write_page(page)
+        max_results = 50
+
+        if Context.config.get("groups"):
+            groups = Context.config.get("groups").split(",")
+        else:
+            groups = ["jira-administrators",
+                      "jira-software-users",
+                      "jira-core-users",
+                      "jira-users",
+                      "users",
+                      "Atlassian-Jira-Users-Cloud"]
+
+        for group in groups:
+            group = group.strip()
+            try:
+                params = {"groupname": group,
+                          "maxResults": max_results,
+                          "includeInactiveUsers": True}
+                pager = Paginator(Context.client, items_key='values')
+                for page in pager.pages(self.tap_stream_id, "GET",
+                                        "/rest/api/2/group/member",
+                                        params=params):
+                    self.write_page(page)
+            except JiraNotFoundError:
+                LOGGER.info("Could not find group \"%s\", skipping", group)
+
 
 class Projects(Stream):
     def sync(self):
