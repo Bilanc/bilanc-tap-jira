@@ -122,7 +122,7 @@ class Stream():
 
 class Users(Stream):
     def sync(self):
-        max_results = 2
+        max_results = 50
 
         if Context.config.get("groups"):
             groups = Context.config.get("groups").split(",")
