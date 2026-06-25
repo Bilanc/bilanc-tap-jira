@@ -5,29 +5,98 @@
       "object"
     ],
     "properties": {
-      "status_id": {
+      "id": {
         "type": [
           "null",
           "string"
         ]
       },
-      "status_name": {
+      "name": {
         "type": [
           "null",
           "string"
         ]
       },
-      "status_category": {
+      "statusCategory": {
         "type": [
           "null",
           "string"
         ]
       },
-      "tenant": {
+      "scope": {
+        "title": "Scope",
+        "type": [
+          "null",
+          "object"
+        ],
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "project": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "description": {
         "type": [
           "null",
           "string"
         ]
+      },
+      "usages": {
+        "type": [
+          "null",
+          "array"
+        ],
+        "items": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "project": {
+              "type": [
+                "null",
+                "object"
+              ],
+              "properties": {
+                "id": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              }
+            },
+            "issueTypes": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            }
+          }
+        }
       },
       "inserted_at": {
         "type": [
