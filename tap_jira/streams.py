@@ -192,11 +192,38 @@ class IssuePriorities(Stream):
         self.write_page(priorities)
 
 class Statuses(Stream):
+    def _parse_status(self, status):
+        """Flatten a Jira status into the columns our warehouse expects, and
+        stamp the tenant (the search endpoint does not return it)."""
+        # statusCategory comes back in one of two shapes depending on the
+        # endpoint/version: a plain string enum ("TODO" / "IN_PROGRESS" /
+        # "DONE") on /statuses/search, or a nested object carrying a language
+        # -agnostic "key" ("new" / "indeterminate" / "done") on /status.
+        # Capture the scalar from either; the value is normalised to the
+        # issue-level vocabulary (new / indeterminate / done) downstream.
+        status_category = status.get('statusCategory')
+        if isinstance(status_category, dict):
+            status_category = status_category.get('key')
+        return {
+            'status_id': status.get('id'),
+            'status_name': status.get('name'),
+            'status_category': status_category,
+            'tenant': Context.config.get('site_name', 'default'),
+        }
+
+    def write_page(self, page):
+        super().write_page([self._parse_status(status) for status in page])
+
     def sync(self):
-        path="/rest/api/2/statuses/search"
-        response = Context.client.request(self.tap_stream_id, "GET", path)
-        priorities = response["values"]
-        self.write_page(priorities)
+        # /statuses/search is paginated (default maxResults ~50). The previous
+        # implementation read only the first page, silently dropping every
+        # status beyond it — which left intermediate workflow states (the very
+        # ones needed to derive "started"/"done") unmapped. Page through fully.
+        pager = Paginator(Context.client, items_key="values")
+        for page in pager.pages(self.tap_stream_id, "GET",
+                                "/rest/api/2/statuses/search",
+                                params={"maxResults": 200}):
+            self.write_page(page)
 
 
 class Issues(Stream):
@@ -413,7 +440,7 @@ ALL_STREAMS = [
     Stream("issue_types", ["id"], path="/rest/api/2/issuetype"),
     Stream("resolutions", ["id"], path="/rest/api/2/resolution"),
     Stream("roles", ["id"], path="/rest/api/2/role"),
-    Statuses("statuses", ["id"]),
+    Statuses("statuses", ["status_id", "tenant"]),
     IssuePriorities("issue_priorities", ["id"]),
     ISSUES,
     ISSUE_COMMENTS,
