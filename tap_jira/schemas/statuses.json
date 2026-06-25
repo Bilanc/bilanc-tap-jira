@@ -5,105 +5,36 @@
       "object"
     ],
     "properties": {
-      "id": {
+      "status_id": {
         "type": [
           "null",
           "string"
         ]
       },
-      "name": {
+      "status_name": {
         "type": [
           "null",
           "string"
         ]
       },
-      "statusCategory": {
+      "status_category": {
         "type": [
           "null",
           "string"
         ]
       },
-      "scope": {
-        "title": "Scope",
+      "tenant": {
         "type": [
           "null",
-          "object"
+          "string"
+        ]
+      },
+      "inserted_at": {
+        "type": [
+          "null",
+          "string"
         ],
-        "properties": {
-          "type": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "project": {
-            "type": [
-              "null",
-              "object"
-            ],
-            "properties": {
-              "id": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              }
-            }
-          }
-        }
-      },
-      "description": {
-        "type": [
-          "null",
-          "string"
-        ]
-      },
-      "usages": {
-        "type": [
-          "null",
-          "array"
-        ],
-        "items": {
-          "type": [
-            "null",
-            "object"
-          ],
-          "properties": {
-            "project": {
-              "type": [
-                "null",
-                "object"
-              ],
-              "properties": {
-                "id": {
-                  "type": [
-                    "null",
-                    "string"
-                  ]
-                }
-              }
-            },
-            "issueTypes": {
-              "type": [
-                "null",
-                "array"
-              ],
-              "items": {
-                "type": [
-                  "null",
-                  "string"
-                ]
-              }
-            }
-          }
-        }
+        "format": "date-time"
       }
-    },
-    "inserted_at": {
-      "type": [
-        "null",
-        "string"
-      ],
-      "format": "date-time"
     }
 }
