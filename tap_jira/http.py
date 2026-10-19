@@ -23,7 +23,7 @@ TIME_BETWEEN_REQUESTS = timedelta(microseconds=10e3)
 LOGGER = singer.get_logger()
 
 # Paths for which a 404 is treated as transient and retried
-RETRYABLE_NOT_FOUND_PATHS = ("/rest/api/2/search/jql",)
+RETRYABLE_NOT_FOUND_PATHS = ("/rest/api/2/search/jql", "/rest/api/3/search/jql")
 
 class JiraError(Exception):
     def __init__(self, message=None, response=None):
@@ -153,7 +153,7 @@ def check_status(response):
         raise exc(message, response) from None
 
 def is_retryable_not_found(path):
-    return bool(path) and path.rstrip("/") in RETRYABLE_NOT_FOUND_PATHS
+    return bool(path) and ("/" + path.strip("/")) in RETRYABLE_NOT_FOUND_PATHS
 
 class Client():
     def __init__(self, config, config_path):
