@@ -22,6 +22,9 @@ TIME_BETWEEN_REQUESTS = timedelta(microseconds=10e3)
 
 LOGGER = singer.get_logger()
 
+# Paths for which a 404 is treated as transient and retried
+RETRYABLE_NOT_FOUND_PATHS = ("/rest/api/2/search/jql", "/rest/api/3/search/jql")
+
 class JiraError(Exception):
     def __init__(self, message=None, response=None):
         super().__init__(message)
@@ -51,6 +54,12 @@ class JiraConflictError(JiraError):
 
 class JiraNotFoundError(JiraError):
     pass
+
+class JiraTransientNotFoundError(JiraNotFoundError):
+    """404 from the issues search endpoint; Jira intermittently returns
+    "Issue does not exist or you do not have permission to see it" for a
+    JQL search when an issue in the result set disappears mid-request,
+    and the same request succeeds when repeated."""
 
 class JiraRateLimitError(JiraBackoffError):
     pass
@@ -143,6 +152,9 @@ def check_status(response):
             response.status_code, {}).get("raise_exception", JiraError)
         raise exc(message, response) from None
 
+def is_retryable_not_found(path):
+    return path in RETRYABLE_NOT_FOUND_PATHS
+
 class Client():
     def __init__(self, config, config_path):
         self.is_cloud = 'client_id' in config.keys()
@@ -218,6 +230,10 @@ class Client():
         return self.session.send(request.prepare())
 
     @backoff.on_exception(backoff.constant,
+                          JiraTransientNotFoundError,
+                          max_tries=4,
+                          interval=30)
+    @backoff.on_exception(backoff.constant,
                           JiraBackoffError,
                           max_tries=10,
                           interval=60)
@@ -229,7 +245,14 @@ class Client():
             response = self.send(*args, **kwargs)
             self.next_request_at = datetime.now() + TIME_BETWEEN_REQUESTS
             timer.tags[metrics.Tag.http_status_code] = response.status_code
-        check_status(response)
+        try:
+            check_status(response)
+        except JiraNotFoundError as exc:
+            path = args[1] if len(args) > 1 else kwargs.get("path", "")
+            if is_retryable_not_found(path):
+                LOGGER.warning("Transient 404 from %s, retrying: %s", path, exc.message)
+                raise JiraTransientNotFoundError(exc.message, exc.response) from None
+            raise
         return response.json()
     
     def _get_cloud_id(self):
