@@ -153,7 +153,7 @@ def check_status(response):
         raise exc(message, response) from None
 
 def is_retryable_not_found(path):
-    return bool(path) and ("/" + path.strip("/")) in RETRYABLE_NOT_FOUND_PATHS
+    return path in RETRYABLE_NOT_FOUND_PATHS
 
 class Client():
     def __init__(self, config, config_path):

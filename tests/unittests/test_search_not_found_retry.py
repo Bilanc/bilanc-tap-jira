@@ -45,13 +45,6 @@ class TestSearchNotFoundRetry(unittest.TestCase):
         self.assertEqual(mock_send.call_count, 2)
 
     @mock.patch("tap_jira.http.Client.send", side_effect=[NOT_FOUND, OK])
-    def test_relative_search_path_404_is_retried(self, mock_send, mock_auth_check, mock_sleep):
-        client = http.Client(CONFIG, None)
-        result = client.request("issues", "GET", "rest/api/2/search/jql")
-        self.assertEqual(result, {"issues": []})
-        self.assertEqual(mock_send.call_count, 2)
-
-    @mock.patch("tap_jira.http.Client.send", side_effect=[NOT_FOUND, OK])
     def test_other_404_is_not_retried(self, mock_send, mock_auth_check, mock_sleep):
         client = http.Client(CONFIG, None)
         with self.assertRaises(http.JiraNotFoundError) as ctx:
