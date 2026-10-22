@@ -14,6 +14,7 @@ import json
 # Jira OAuth tokens last for 3600 seconds. We set it to 3500 to try to
 # come in under the limit.
 REFRESH_TOKEN_EXPIRATION_PERIOD = 3500
+REFRESH_RETRY_PERIOD = 60
 
 # The project plan for this tap specified:
 # > our past experience has shown that issuing queries no more than once every
@@ -83,6 +84,12 @@ def should_retry_httperror(exception):
         return True
 
     return 500 <= exception.response.status_code < 600
+
+def should_retry_oauth_httperror(exception):
+    """ Retry 5xx and 429 from the Atlassian OAuth endpoints, and ConnectionErrors. """
+    if exception.response is None:
+        return True
+    return exception.response.status_code == 429 or should_retry_httperror(exception)
 
 ERROR_CODE_EXCEPTION_MAPPING = {
     400: {
@@ -255,6 +262,11 @@ class Client():
             raise
         return response.json()
     
+    @backoff.on_exception(backoff.expo,
+                          (requests.exceptions.ConnectionError, HTTPError),
+                          jitter=None,
+                          max_tries=6,
+                          giveup=lambda e: not should_retry_oauth_httperror(e))
     def _get_cloud_id(self):
         url = "https://api.atlassian.com/oauth/token/accessible-resources"
         headers = {
@@ -268,18 +280,29 @@ class Client():
             raise JiraForbiddenError(f"Invalid or not authorized site_name ({self.site_name}): {response.text}")
         return cloud_id
 
+    @backoff.on_exception(backoff.expo,
+                          (requests.exceptions.ConnectionError, HTTPError),
+                          jitter=None,
+                          max_tries=6,
+                          giveup=lambda e: not should_retry_oauth_httperror(e))
+    def _post_refresh_token(self, body):
+        resp = self.session.post("https://auth.atlassian.com/oauth/token", data=body)
+        LOGGER.info(f"REFRESH RESPONSE: {resp.text}")
+        resp.raise_for_status()
+        return resp
+
     def refresh_credentials(self):
         LOGGER.info(f"Refresh Credentials.")
         body = {"grant_type": "refresh_token",
                 "client_id": self.oauth_client_id,
                 "client_secret": self.oauth_client_secret,
                 "refresh_token": self.refresh_token}
+        resp = None
+        scheduled = self.login_timer is not None
         try:
             with open(self.config_path, 'r') as f:
                 creds = json.load(f)
-            resp = self.session.post("https://auth.atlassian.com/oauth/token", data=body)
-            LOGGER.info(f"REFRESH RESPONSE: {resp.text}")
-            resp.raise_for_status()
+            resp = self._post_refresh_token(body)
             resp_json = resp.json()
             self.access_token = resp_json['access_token']
             self.refresh_token = resp_json['refresh_token']
@@ -288,15 +311,19 @@ class Client():
                 json.dump(creds, f, indent=4)
         except Exception as ex:
             error_message = str(ex)
-            if resp:
+            resp = resp if resp is not None else getattr(ex, 'response', None)
+            if resp is not None:
                 error_message = error_message + ", Response from Jira: {}".format(resp.text)
+            if scheduled:
+                LOGGER.warning("Scheduled token refresh failed, retrying in %s seconds", REFRESH_RETRY_PERIOD)
+                self._schedule_refresh(REFRESH_RETRY_PERIOD)
             raise Exception(error_message) from ex
-        finally:
-            resp.raise_for_status()
-            LOGGER.info("Starting new login timer")
-            self.login_timer = threading.Timer(REFRESH_TOKEN_EXPIRATION_PERIOD,
-                                               self.refresh_credentials)
-            self.login_timer.start()
+        self._schedule_refresh(REFRESH_TOKEN_EXPIRATION_PERIOD)
+
+    def _schedule_refresh(self, delay):
+        LOGGER.info("Starting new login timer")
+        self.login_timer = threading.Timer(delay, self.refresh_credentials)
+        self.login_timer.start()
 
     def test_credentials_are_authorized(self):
         # Assume that everyone has issues, so we try and hit that endpoint
