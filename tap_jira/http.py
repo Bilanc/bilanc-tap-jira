@@ -255,6 +255,11 @@ class Client():
             raise
         return response.json()
     
+    @backoff.on_exception(backoff.expo,
+                          (requests.exceptions.ConnectionError, HTTPError),
+                          jitter=None,
+                          max_tries=6,
+                          giveup=lambda e: not should_retry_httperror(e))
     def _get_cloud_id(self):
         url = "https://api.atlassian.com/oauth/token/accessible-resources"
         headers = {
@@ -268,18 +273,28 @@ class Client():
             raise JiraForbiddenError(f"Invalid or not authorized site_name ({self.site_name}): {response.text}")
         return cloud_id
 
+    @backoff.on_exception(backoff.expo,
+                          (requests.exceptions.ConnectionError, HTTPError),
+                          jitter=None,
+                          max_tries=6,
+                          giveup=lambda e: not should_retry_httperror(e))
+    def _post_refresh_token(self, body):
+        resp = self.session.post("https://auth.atlassian.com/oauth/token", data=body)
+        LOGGER.info(f"REFRESH RESPONSE: {resp.text}")
+        resp.raise_for_status()
+        return resp
+
     def refresh_credentials(self):
         LOGGER.info(f"Refresh Credentials.")
         body = {"grant_type": "refresh_token",
                 "client_id": self.oauth_client_id,
                 "client_secret": self.oauth_client_secret,
                 "refresh_token": self.refresh_token}
+        resp = None
         try:
             with open(self.config_path, 'r') as f:
                 creds = json.load(f)
-            resp = self.session.post("https://auth.atlassian.com/oauth/token", data=body)
-            LOGGER.info(f"REFRESH RESPONSE: {resp.text}")
-            resp.raise_for_status()
+            resp = self._post_refresh_token(body)
             resp_json = resp.json()
             self.access_token = resp_json['access_token']
             self.refresh_token = resp_json['refresh_token']
@@ -288,11 +303,13 @@ class Client():
                 json.dump(creds, f, indent=4)
         except Exception as ex:
             error_message = str(ex)
-            if resp:
+            resp = resp if resp is not None else getattr(ex, 'response', None)
+            if resp is not None:
                 error_message = error_message + ", Response from Jira: {}".format(resp.text)
             raise Exception(error_message) from ex
         finally:
-            resp.raise_for_status()
+            if resp is not None:
+                resp.raise_for_status()
             LOGGER.info("Starting new login timer")
             self.login_timer = threading.Timer(REFRESH_TOKEN_EXPIRATION_PERIOD,
                                                self.refresh_credentials)
