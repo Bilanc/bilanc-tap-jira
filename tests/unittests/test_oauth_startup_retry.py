@@ -89,6 +89,16 @@ class TestRefreshTokenRetry(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 2)
         mock_timer.assert_called_once()
 
+    def test_failed_scheduled_refresh_reschedules_retry(self, mock_cloud_id, mock_auth_check, mock_timer, mock_sleep):
+        client, _ = self._client([TOKEN_OK])
+        mock_timer.reset_mock()
+        with mock.patch("tap_jira.http.open", mock.mock_open(read_data=json.dumps(CLOUD_CONFIG)), create=True), \
+                mock.patch.object(requests.Session, "post", side_effect=[SERVICE_UNAVAILABLE] * 6):
+            with self.assertRaises(Exception):
+                client.refresh_credentials()
+        mock_timer.assert_called_once_with(http.REFRESH_RETRY_PERIOD, client.refresh_credentials)
+        self.assertEqual(client.access_token, "new-access")
+
     def test_connection_error_from_token_endpoint_does_not_start_timer(self, mock_cloud_id, mock_auth_check, mock_timer, mock_sleep):
         with mock.patch("tap_jira.http.open", mock.mock_open(read_data=json.dumps(CLOUD_CONFIG)), create=True), \
                 mock.patch.object(requests.Session, "post", side_effect=requests.exceptions.ConnectionError("boom")) as mock_post:

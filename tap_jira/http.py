@@ -14,6 +14,7 @@ import json
 # Jira OAuth tokens last for 3600 seconds. We set it to 3500 to try to
 # come in under the limit.
 REFRESH_TOKEN_EXPIRATION_PERIOD = 3500
+REFRESH_RETRY_PERIOD = 60
 
 # The project plan for this tap specified:
 # > our past experience has shown that issuing queries no more than once every
@@ -297,6 +298,7 @@ class Client():
                 "client_secret": self.oauth_client_secret,
                 "refresh_token": self.refresh_token}
         resp = None
+        scheduled = self.login_timer is not None
         try:
             with open(self.config_path, 'r') as f:
                 creds = json.load(f)
@@ -312,10 +314,15 @@ class Client():
             resp = resp if resp is not None else getattr(ex, 'response', None)
             if resp is not None:
                 error_message = error_message + ", Response from Jira: {}".format(resp.text)
+            if scheduled:
+                LOGGER.warning("Scheduled token refresh failed, retrying in %s seconds", REFRESH_RETRY_PERIOD)
+                self._schedule_refresh(REFRESH_RETRY_PERIOD)
             raise Exception(error_message) from ex
+        self._schedule_refresh(REFRESH_TOKEN_EXPIRATION_PERIOD)
+
+    def _schedule_refresh(self, delay):
         LOGGER.info("Starting new login timer")
-        self.login_timer = threading.Timer(REFRESH_TOKEN_EXPIRATION_PERIOD,
-                                           self.refresh_credentials)
+        self.login_timer = threading.Timer(delay, self.refresh_credentials)
         self.login_timer.start()
 
     def test_credentials_are_authorized(self):
