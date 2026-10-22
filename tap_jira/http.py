@@ -84,6 +84,12 @@ def should_retry_httperror(exception):
 
     return 500 <= exception.response.status_code < 600
 
+def should_retry_oauth_httperror(exception):
+    """ Retry 5xx and 429 from the Atlassian OAuth endpoints, and ConnectionErrors. """
+    if exception.response is None:
+        return True
+    return exception.response.status_code == 429 or should_retry_httperror(exception)
+
 ERROR_CODE_EXCEPTION_MAPPING = {
     400: {
         "raise_exception": JiraBadRequestError,
@@ -259,7 +265,7 @@ class Client():
                           (requests.exceptions.ConnectionError, HTTPError),
                           jitter=None,
                           max_tries=6,
-                          giveup=lambda e: not should_retry_httperror(e))
+                          giveup=lambda e: not should_retry_oauth_httperror(e))
     def _get_cloud_id(self):
         url = "https://api.atlassian.com/oauth/token/accessible-resources"
         headers = {
@@ -277,7 +283,7 @@ class Client():
                           (requests.exceptions.ConnectionError, HTTPError),
                           jitter=None,
                           max_tries=6,
-                          giveup=lambda e: not should_retry_httperror(e))
+                          giveup=lambda e: not should_retry_oauth_httperror(e))
     def _post_refresh_token(self, body):
         resp = self.session.post("https://auth.atlassian.com/oauth/token", data=body)
         LOGGER.info(f"REFRESH RESPONSE: {resp.text}")
@@ -307,13 +313,10 @@ class Client():
             if resp is not None:
                 error_message = error_message + ", Response from Jira: {}".format(resp.text)
             raise Exception(error_message) from ex
-        finally:
-            if resp is not None:
-                resp.raise_for_status()
-            LOGGER.info("Starting new login timer")
-            self.login_timer = threading.Timer(REFRESH_TOKEN_EXPIRATION_PERIOD,
-                                               self.refresh_credentials)
-            self.login_timer.start()
+        LOGGER.info("Starting new login timer")
+        self.login_timer = threading.Timer(REFRESH_TOKEN_EXPIRATION_PERIOD,
+                                           self.refresh_credentials)
+        self.login_timer.start()
 
     def test_credentials_are_authorized(self):
         # Assume that everyone has issues, so we try and hit that endpoint
