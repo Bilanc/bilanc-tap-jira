@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 import time
 import threading
 import re
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, ChunkedEncodingError
 from requests.auth import HTTPBasicAuth
-from urllib3.exceptions import IncompleteRead
+from urllib3.exceptions import IncompleteRead, ProtocolError
 import requests
 from singer import metrics
 import singer
@@ -78,9 +78,11 @@ class JiraNotImplementedError(JiraError):
     pass
 
 def should_retry_httperror(exception):
-    """ Retry 500-range errors, ConnectionErrors, and IncompleteRead errors. """
-    # ConnectionError or IncompleteRead exceptions are thrown without a response
-    if exception.response is None or isinstance(exception, IncompleteRead):
+    """ Retry 500-range errors, ConnectionErrors, and broken/incomplete responses. """
+    # ConnectionError, ChunkedEncodingError, ProtocolError and IncompleteRead
+    # are thrown without a response (requests wraps urllib3's ProtocolError /
+    # IncompleteRead into ChunkedEncodingError while reading the body)
+    if getattr(exception, "response", None) is None or isinstance(exception, (ProtocolError, IncompleteRead)):
         return True
 
     return 500 <= exception.response.status_code < 600
@@ -216,7 +218,8 @@ class Client():
         return headers
 
     @backoff.on_exception(backoff.expo,
-                          (requests.exceptions.ConnectionError, HTTPError, IncompleteRead),
+                          (requests.exceptions.ConnectionError, HTTPError,
+                           ChunkedEncodingError, ProtocolError, IncompleteRead),
                           jitter=None,
                           max_tries=6,
                           giveup=lambda e: not should_retry_httperror(e))
