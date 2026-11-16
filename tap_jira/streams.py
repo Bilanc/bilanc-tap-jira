@@ -113,6 +113,8 @@ class Stream():
         for rec in page:
             # Add inserted_at timestamp
             rec['inserted_at'] = extraction_time.isoformat()
+            if 'tenant' in self.pk_fields:
+                rec['tenant'] = Context.config.get('site_name', 'default')
             with Transformer() as transformer:
                 rec = transformer.transform(rec, stream.schema.to_dict(), stream_metadata)
             singer.write_record(self.tap_stream_id, rec, time_extracted=extraction_time)
@@ -400,28 +402,28 @@ class Worklogs(Stream):
                 break
 
 
-VERSIONS = Stream("versions", ["id"], indirect_stream=True)
-COMPONENTS = Stream("components", ["id"], indirect_stream=True)
+VERSIONS = Stream("versions", ["tenant", "id"], indirect_stream=True)
+COMPONENTS = Stream("components", ["tenant", "id"], indirect_stream=True)
 ISSUES = Issues("issues", ["id"])
 ISSUE_COMMENTS = Stream("issue_comments", ["id"], indirect_stream=True)
 ISSUE_TRANSITIONS = Stream("issue_transitions", ["id"],
                            indirect_stream=True)
-PROJECTS = Projects("projects", ["id"])
+PROJECTS = Projects("projects", ["tenant", "id"])
 CHANGELOGS = Changelogs("changelogs", ["id"], indirect_stream=True)
-USERS = Users("users", ["accountId"])
+USERS = Users("users", ["tenant", "accountId"])
 
 ALL_STREAMS = [
     USERS,
     PROJECTS,
     VERSIONS,
     COMPONENTS,
-    ProjectTypes("project_types", ["key"]),
-    Stream("project_categories", ["id"], path="/rest/api/2/projectCategory"),
-    Stream("issue_types", ["id"], path="/rest/api/2/issuetype"),
-    Stream("resolutions", ["id"], path="/rest/api/2/resolution"),
-    Stream("roles", ["id"], path="/rest/api/2/role"),
-    Statuses("statuses", ["id"]),
-    IssuePriorities("issue_priorities", ["id"]),
+    ProjectTypes("project_types", ["tenant", "key"]),
+    Stream("project_categories", ["tenant", "id"], path="/rest/api/2/projectCategory"),
+    Stream("issue_types", ["tenant", "id"], path="/rest/api/2/issuetype"),
+    Stream("resolutions", ["tenant", "id"], path="/rest/api/2/resolution"),
+    Stream("roles", ["tenant", "id"], path="/rest/api/2/role"),
+    Statuses("statuses", ["tenant", "id"]),
+    IssuePriorities("issue_priorities", ["tenant", "id"]),
     ISSUES,
     ISSUE_COMMENTS,
     CHANGELOGS,

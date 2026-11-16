@@ -2,6 +2,9 @@
   "title": "IssueType",
   "type": ["null", "object"],
   "properties": {
+    "tenant": {
+      "type": ["null", "string"]
+    },
     "self": {
       "type": ["null", "string"]
     },
