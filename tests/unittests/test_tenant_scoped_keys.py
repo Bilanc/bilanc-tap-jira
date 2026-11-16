@@ -26,6 +26,10 @@ class TestTenantScopedKeys(unittest.TestCase):
     def setUp(self):
         self.catalog = tap_jira.discover()
         self.entries = {s.tap_stream_id: s for s in self.catalog.streams}
+        # get_catalog_entry caches entries on the class; isolate each test.
+        stream_map = patch.object(Context, "stream_map", {})
+        stream_map.start()
+        self.addCleanup(stream_map.stop)
 
     def test_discovered_key_properties_include_tenant(self):
         for stream_id, keys in TENANT_SCOPED.items():
