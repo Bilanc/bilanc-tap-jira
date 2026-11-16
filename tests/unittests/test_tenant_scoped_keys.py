@@ -44,3 +44,14 @@ class TestTenantScopedKeys(unittest.TestCase):
         record = write_record.call_args[0][1]
         self.assertEqual(record["tenant"], "acme")
         self.assertEqual(record["id"], "10001")
+
+    def test_records_carry_tenant_with_catalog_lacking_tenant(self):
+        stream = next(s for s in streams.ALL_STREAMS
+                      if s.tap_stream_id == "issue_types")
+        del self.entries["issue_types"].schema.properties["tenant"]
+        with patch.object(Context, "config", {"site_name": "acme"}), \
+                patch.object(Context, "catalog", self.catalog), \
+                patch.object(streams.singer, "write_record") as write_record:
+            stream.write_page([{"id": "10001", "name": "Bug"}])
+
+        self.assertEqual(write_record.call_args[0][1]["tenant"], "acme")

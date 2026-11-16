@@ -113,10 +113,12 @@ class Stream():
         for rec in page:
             # Add inserted_at timestamp
             rec['inserted_at'] = extraction_time.isoformat()
-            if 'tenant' in self.pk_fields:
-                rec['tenant'] = Context.config.get('site_name', 'default')
             with Transformer() as transformer:
                 rec = transformer.transform(rec, stream.schema.to_dict(), stream_metadata)
+            # Stamped after the transform: the SCHEMA message always carries the
+            # tenant key, but a stored catalog may predate the tenant property.
+            if 'tenant' in self.pk_fields:
+                rec['tenant'] = Context.config.get('site_name', 'default')
             singer.write_record(self.tap_stream_id, rec, time_extracted=extraction_time)
         with metrics.record_counter(self.tap_stream_id) as counter:
             counter.increment(len(page))
