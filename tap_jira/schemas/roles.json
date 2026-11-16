@@ -6,6 +6,9 @@
     "object"
   ],
   "properties": {
+    "tenant": {
+      "type": ["null", "string"]
+    },
     "self": {
       "type": [
         "null",

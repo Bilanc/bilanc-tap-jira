@@ -5,6 +5,9 @@
     "object"
   ],
   "properties": {
+    "tenant": {
+      "type": ["null", "string"]
+    },
     "simplified": {
       "type": [
         "null",

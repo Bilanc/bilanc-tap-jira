@@ -4,6 +4,9 @@
     "object"
   ],
   "properties": {
+    "tenant": {
+      "type": ["null", "string"]
+    },
     "componentBean": {
       "type": [
         "null",
