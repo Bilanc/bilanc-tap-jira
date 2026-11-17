@@ -47,7 +47,7 @@ class JiraForbiddenError(JiraError):
 class JiraSubRequestFailedError(JiraError):
     pass
 
-class JiraBadGatewayError(JiraError):
+class JiraBadGatewayError(JiraBackoffError):
     pass
 
 class JiraConflictError(JiraError):
@@ -68,10 +68,10 @@ class JiraRateLimitError(JiraBackoffError):
 class JiraServiceUnavailableError(JiraBackoffError):
     pass
 
-class JiraGatewayTimeoutError(JiraError):
+class JiraGatewayTimeoutError(JiraBackoffError):
     pass
 
-class JiraInternalServerError(JiraError):
+class JiraInternalServerError(JiraBackoffError):
     pass
 
 class JiraNotImplementedError(JiraError):
